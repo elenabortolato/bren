@@ -7,4 +7,5 @@ The function "bren" fits regression for gaussian equicorrelated data using adjus
 Jeffreys (power) penalization method is robust (i.e. produces reliable confidence intervals) to misspecified correlation structures.
 
 # Stroke example
-Real data example of using "bren". It contains the code for reproducing the simulation study in the paper
+Example for using "bren" with the Stroke dataset (Dobson e Barnett, 2008), available in the \texttt{R} package \text{MLGdata} (Sartori et al.) on CRAN.
+This file also contains the code for reproducing the simulation study in the paper
