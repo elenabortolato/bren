@@ -8,4 +8,6 @@ Jeffreys (power) penalization method is robust (i.e. produces reliable confidenc
 
 # Stroke example
 Example for using "bren" with the Stroke dataset (Dobson e Barnett, 2008), available in the \texttt{R} package \text{MLGdata} (Sartori et al.) on CRAN.
-This file also contains the code for reproducing the simulation study in the paper
+This file also contains the code for reproducing the simulation study using this dataset in the paper
+
+# simulation study Scenatios 1 and 2
