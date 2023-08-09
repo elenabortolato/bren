@@ -9,12 +9,11 @@ require(MLGdata)
 ## function to estimates an equicorrelated normal model with regression parameters
 ## using various bias reduction methods .
 
-#n sample size
-#q variate response (replication over the same unit)
-
-## y is a (n*q x 1) vector of responses (long dataset format)
-## x is a (n*q x p) design matrix
-## id indicated the individual is a vector of integers in [1,n]
+# bren
+# Input:
+# y : (n*q x 1) vector of responses (long dataset format), n sample size, q variate response (replication over the same unit)
+# x : (n*q x p) design matrix
+# id : a vector of integers in [1,n] indicating the individual 
 # method: "ML" maximum likelihood, 
 #         "correction" for Bias correction,
 #          "AS_mean" Bias reduction (Firth)
@@ -23,10 +22,19 @@ require(MLGdata)
 # a: power for Jeffreys penalization, a=-0.5 default for Jeffreys penalization
 # maxit: Newton Raphson iterations
 # epsilon: tolerance for convergenceof Newton Raphson
-# max_step_factor: length of the sequence of rescaling factors for updating the parameters
+# max_step_factor: length of the sequence of rescaling factors for updating the parameters (2^-1, 2^-2, ... ,2^-max_step_factor)
 # slowit: 1 for Newton Raphson, <1 for smaller steps
-
-breqn <- function(x, y, id, method = "ML", a = 0.5,
+# Output:
+# estimate = beta coefficients, sigma2, rho
+# sigma2 
+# rho
+# se: standard errors
+# converged : flag for convergence
+# iter : iterations to converge 
+# grad : values of the score components at final iteration
+# method : method used, as in Input
+ 
+bren <- function(x, y, id, method = "ML", a = 0.5,
                   maxit = 1000, epsilon = 10^(-11), max_step_factor = 11, slowit = 1) {
   x <- as.matrix(x)
   p <- ncol(x)
@@ -287,11 +295,11 @@ all_sim=function(q=q,p=p,n=n,pars=pars,x=xx, mis=FALSE, cor=NULL){
   e=rmnorm(n=n, mean = c(rep(0,q)), varcov = varcov)
   e=as.vector(t(e))
   y=e+x%*%beta
-  mle=breqn( y = y, x=x , id=id)
-  bc=breqn( y = y, x=x , id=id,  method = "correction" )
-  jeff_n05=breqn( y = y, x=x , id=id, method = "MPL_Jeffreys",   a=-0.5)
-  mbr=breqn( y = y, x=x , id=id,  method = "AS_median" )
-  br=breqn(y = y, x=x , id=id, method = "AS_mean"  )
+  mle=bren( y = y, x=x , id=id)
+  bc=bren( y = y, x=x , id=id,  method = "correction" )
+  jeff_n05=bren( y = y, x=x , id=id, method = "MPL_Jeffreys",   a=-0.5)
+  mbr=bren( y = y, x=x , id=id,  method = "AS_median" )
+  br=bren(y = y, x=x , id=id, method = "AS_mean"  )
   rob=gee(y~ .,data=as.data.frame(x[,-1]), id=id,corstr = "exchangeable",
           maxiter = 1000,tol = 10^(-11),silent = T)
   
@@ -315,11 +323,11 @@ all_sim_id=function(q=q,p=p,n=n,pars=pars,x=xx, mis=FALSE, cor=NULL){
   e=rmnorm(n=n, mean = c(rep(0,q)), varcov = varcov)
   e=as.vector(t(e))
   y=e+x%*%beta
-  mle=breqn( y = y, x=x , id=id)
-  bc=breqn( y = y, x=x , id=id,  method = "correction" )
-  jeff_n05=breqn( y = y, x=x , id=id, method = "MPL_Jeffreys",   a=-0.5)
-  mbr=breqn( y = y, x=x , id=id,  method = "AS_median" )
-  br=breqn(y = y, x=x , id=id, method = "AS_mean"  )
+  mle=bren( y = y, x=x , id=id)
+  bc=bren( y = y, x=x , id=id,  method = "correction" )
+  jeff_n05=bren( y = y, x=x , id=id, method = "MPL_Jeffreys",   a=-0.5)
+  mbr=bren( y = y, x=x , id=id,  method = "AS_median" )
+  br=bren(y = y, x=x , id=id, method = "AS_mean"  )
   rob=gee(y~ 1 , id=id,corstr = "exchangeable",
           maxiter = 1000,tol = 10^(-11),silent = T)
   
@@ -965,11 +973,11 @@ library(geepack)
 
 str(Stroke1)
 xx=model.matrix(Stroke1$y~Group*Week, data=Stroke1)
-ml=breqn(x=xx ,y=Stroke1$y,id=Stroke1$Subject) 
-mbr=breqn(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_median") 
-j=breqn(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "MPL_Jeffreys",   a=-0.5)
-br=breqn(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_mean") 
-bc=breqn(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "correction") 
+ml=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject) 
+mbr=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_median") 
+j=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "MPL_Jeffreys",   a=-0.5)
+br=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_mean") 
+bc=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "correction") 
 #gee=gee(Stroke1$y~., data=as.data.frame(xx[,-1]) ,corstr = "exchangeable", id=Stroke1$Subject )
 
 rob=gee(Stroke1$y~.,id=Stroke1$Subject,corstr = "exchangeable",data=as.data.frame(xx[,-1]),
