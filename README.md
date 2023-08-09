@@ -1,5 +1,5 @@
 
-Code related to the paper "Bias reduction and robustness for gaussian longitudinal data analysis" (E. Bortolato, E. C. Kenne Pagui)
+Code related to the paper "Bias reduction and robustness for gaussian longitudinal data analysis" (E. Bortolato, E. C. Kenne Pagui, 2023)
 to appear in Journal Of Statistical Computation And Simulation.
 
 # bren (Bias Reduction in the Equicorrelated multivariate Normal)
