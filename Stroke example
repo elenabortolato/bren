@@ -1,1 +1,127 @@
+############################################
+#Real datadet : Stroke 
+#install.packages("MLGdata")
+library(MLGdata)
+library(gee)
+library(geepack)
 
+str(Stroke1)
+xx=model.matrix(Stroke1$y~Group*Week, data=Stroke1)
+ml=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject) 
+mbr=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_median") 
+j=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "MPL_Jeffreys",   a=-0.5)
+br=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "AS_mean") 
+bc=bren(x=xx ,y=Stroke1$y,id=Stroke1$Subject, method = "correction") 
+#gee=gee(Stroke1$y~., data=as.data.frame(xx[,-1]) ,corstr = "exchangeable", id=Stroke1$Subject )
+
+rob=gee(Stroke1$y~.,id=Stroke1$Subject,corstr = "exchangeable",data=as.data.frame(xx[,-1]),
+        maxiter = 1000,tol = 10^(-11),silent = T)
+ 
+table_est=rbind(
+  ml$estimate,
+  ml$se,
+  bc$estimate, 
+  bc$se,
+  br$estimate,
+  br$se,
+  mbr$estimate,
+  mbr$se,
+  j$estimate, 
+  j$se,
+  c(rob$coefficients,rob$scale, rob$working.correlation[1,2]),
+  c(sqrt(diag(rob$naive.variance)), NA, NA), 
+  c(rob$coefficients,rob$scale, NA),
+  #matrix(unlist(lapply(input, function (x) c(sqrt(diag(x$rob$naive.variance)),NA,NA))),ncol=p, nrow=n,byrow=T)
+  c(sqrt(diag(rob$robust.variance)), NA, NA)
+  
+)
+
+
+
+table_est
+
+
+rownames(table_est)=c("MLE", "","BC","" , "BR","" ,"MBR", "", "J", "", "GEE",  "","ROB" ,"")
+colnames(table_est)[7:8]=c("sigma2", "rho")
+table_est
+xtable::xtable(table_est)
+'
+table_ic=cbind(
+  matrix(apply(cbind( ml$estimate, ml$se),1, function(x) c(c(x[1],x[2]),t(c(x[1]-qnorm(0.975)*x[2],
+                                                                            x[1]+qnorm(0.975)*x[2])))),byrow=TRUE),
+  matrix(apply(cbind( br$estimate, br$se),1, function(x) c(c(x[1],x[2]), t(c(x[1]-qnorm(0.975)*x[2],
+                                                                             x[1]+qnorm(0.975)*x[2])))),byrow=TRUE),
+  matrix(apply(cbind( mbr$estimate, mbr$se),1, function(x) c(c(x[1],x[2]),t(c(x[1]-qnorm(0.975)*x[2],
+                                                                              x[1]+qnorm(0.975)*x[2])))),byrow=TRUE)
+)
+
+
+colnames(table_ic)=c("MLE",  "BR" ,"MBR")
+rownames(table_ic)=c("beta_0", "", "", "", 
+                     "beta_1", "", "", "", 
+                     "beta_2", "", "", "", 
+                     "beta_3", "", "", "", 
+                     
+                     "sigma2", "", "", "", 
+                     "rho", "", "", ""
+)
+
+(table_ic )
+'
+
+
+q=max(Stroke1$Week); n=nrow(Stroke1)/8
+pars= ml$estimate
+varcov= ml$sigma2*(matrix( ml$rho,ncol=q,nrow=q)+diag(1- ml$rho,q))
+varcov
+set=c(pars, q,n)
+p=ncol(xx)+2
+p 
+names(set)=c(paste("beta", c(1:(p-2))),"s2", "rho", "q", "n" ) 
+set
+
+
+R=10000
+est=rep(NA,R);risultati_all=list(NULL);ris_out=NULL
+
+REAL_sim=function(q=q,p=p,n=n,pars=pars,x=xx, mis=FALSE, cor0){
+  
+  beta=pars[1:(p-2)]; s2=pars[p-1]; rho=pars[p]
+  varcov=s2*(matrix(rho,ncol=q,nrow=q)+diag(1-rho,q))
+  if (mis==T) {
+    varcov=cor0
+  }
+  id=rep(1:n,each=q)
+  # e=rmnorm(n=n, mean = c(rep(0,q)), varcov = varcov)
+  e= mvtnorm::rmvnorm(n,   sigma = varcov)
+  e=as.vector(t(e))
+  y=e+x%*%beta
+  mle=bren( y = y, x=x , id=id)
+  bc=bren( y = y, x=x , id=id,  method = "correction" )
+  jeff_n05=bren( y = y, x=x , id=id, method = "MPL_Jeffreys",   a=-0.5)
+  mbr=bren( y = y, x=x , id=id,  method = "AS_median" )
+  br=bren(y = y, x=x , id=id, method = "AS_mean"  )
+  rob=gee(y~ .,data=as.data.frame(x[,-1]), id=id,corstr = "exchangeable",
+          maxiter = 1000,tol = 10^(-11),silent = T)
+  
+  # library(nlme)
+  #lme <- lme(y ~ x[,2]+x[,3]+x[,4]+x[,5], random = ~ 1 | id)
+  #                   data = Stroke1)
+  return(list(samples=y,mle=mle,bc=bc, jeff_n05=jeff_n05, br=br, mbr=mbr,rob=rob, sim.set=pars))
+} 
+
+set.seed(123)
+system.time(
+  if(0==0){
+    seed0=(987654321)
+    set.seed(seed0)
+    cl <- makeCluster(getOption("cl.cores", 8))
+    clusterExport(cl, c("breqn","REAL_sim","set","xx","p","q","rmnorm","gee"))
+    risultati_all =clusterApply(cl,est,fun =   function (z)  
+      REAL_sim(p=p,q=set[p+1],n=set[p+2],x = xx, pars=set[1:p]))
+  })
+#risultati_all
+
+realtab_group=out_all(risultati_all, p = p)
+knitr::kable(realtab_group, digits = 2)
+xtable::xtable(realtab_group)
