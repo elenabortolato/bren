@@ -34,67 +34,81 @@ require(MLGdata)
 # grad : values of the score components at final iteration
 # method : method used, as in Input
  
-bren <- function(x, y, id, method = "ML", a = 0.5,
+breqn <- function(x, y, id, method = "ML", a = 0.5,
                   maxit = 1000, epsilon = 10^(-11), max_step_factor = 11, slowit = 1) {
   x <- as.matrix(x)
   p <- ncol(x)
   n <- length(table(id))
   q <- as.vector(table(id)[1])
-  #initial estimate
   betas <-  solve(crossprod(x,x)) %*% (t(x) %*% y)
-  #prediction
+  
   mus <- drop(x %*% betas)
-  #residuals
   residuals <- y - mus
   residualsmat <- matrix(residuals, nrow = n, byrow = T)
   globalmean <- mean(residuals)
-  #within sum of squares
   SW <- apply(residualsmat, 1, function (x) sum((x - mean(x))^2))
   SSW <- sum(SW)
   subjectmeans <- apply(residualsmat, 1, mean)
-  #between sum of squares
   SSB <-  sum((subjectmeans - globalmean)^2)
-  #initial estimates of sigma and rho
   sigma2 <- (SSW + q * (SSB))/(n * q)
   rho <- (1 - q/(q - 1)*SSW/(SSW + q*SSB) )
   
-  
-  #update beta estimates with covariance structure
-  varcov= varcov=sigma2*(matrix(rho,ncol=q,nrow=q)+diag(1-rho,q))
-  betas  <-  (solve(t(x) %*% (diag(n)%x% solve(varcov) )%*% x)) %*% (t(x) %*% ( (diag(n)%x%  solve(varcov) )%*% y))
-  mus <- drop(x %*% betas)
-  residuals <- y - mus
-  residualsmat <- matrix(residuals, nrow = n, byrow = T)
-  globalmean <- mean(residuals)
-  SW <- apply(residualsmat, 1, function (x) sum((x - mean(x))^2))
-  SSW <- sum(SW)
-  subjectmeans <- apply(residualsmat, 1, mean)
-  SSB <-  sum((subjectmeans - globalmean)^2)
-  sigma2 <- (SSW + q * (SSB))/(n * q) 
-  rho <-  (1 - q/(q - 1)*SSW/(SSW + q*SSB) )
   if (rho <= -1/(q-1)) rho <- 0; flag = 1
   pars <- c(sigma2, rho) 
-  
   
   ## score function of sigma2 and rho
   score <- function(pars, y, mus) {
     sigma2 <- pars[1]
     rho <- pars[2]
-    omega_s2 <- matrix( -rho/((rho - 1) * (q * rho - rho + 1) * sigma2^2),ncol = q, nrow = q)
+    omega_s2 <- matrix( -rho/((rho - 1) * (q * rho - rho + 1) * sigma2^2), 
+                        ncol = q, nrow = q)
     diag(omega_s2) <-  (q * rho - 2 * rho + 1)/((rho - 1) * (q * rho - rho + 1) * sigma2^2)
     omega_rho <- matrix(-(q * rho^2 - rho^2 + 1)/((rho - 1)^2 * (q * rho - rho + 1)^2 * sigma2) ,
                         ncol = q, nrow = q)
     diag(omega_rho) <- ((q - 1) * rho * (q * rho - 2 * rho + 2))/((rho - 1)^2 * (q * rho - rho + 1)^2 * sigma2)
-    #return two components
+    
     c( ( -n*q/(2 * sigma2) -1/2 * sum(t(y - mus) %*% ( diag(n)%x%omega_s2) %*% (y - mus)) ),
        (-(n * (q - 1) * q * rho)/(2 * (rho - 1) * (q * rho - rho + 1))-1/2 * sum(t(y - mus) %*% ( diag(n)%x%omega_rho) %*% (y - mus)) )
     )
   }
   
-  # expected info
+  ## Fisher information
+  # information <- function(pars, level = 0, inverse = FALSE) {
+  #   sigma2 <- pars[1]
+  #   rho <- pars[2]
+  #   
+  #   wx <- sqrt(q/((q * rho - rho + 1) * sigma2)) * x
+  #   qr_decomposition <- qr(wx)
+  #   if (level == 0) {
+  #     R_matrix <- qr.R(qr_decomposition)
+  #     if (inverse) {
+  #       return(chol2inv(R_matrix))
+  #     }
+  #     else {
+  #       return(crossprod(R_matrix))
+  #     }
+  #   }
+  #   if (level == 1) {
+  #     ans <- matrix(NA, 2, 2)
+  #     if (inverse) {
+  #       ans[1,1] <- ( (2 * (q * rho^2 - rho^2 + 1) * sigma2^2)/(n * q) )
+  #       ans[1,2] <- ans[2,1] <- ( -(2 * (rho - 1) * rho * (q * rho - rho + 1) * sigma2)/(n * q) ) 
+  #       ans[2,2] <- ( (2 * (rho - 1)^2 * (q * rho - rho + 1)^2)/(n * (q - 1) * q) )
+  #       return(ans)
+  #     }
+  #     else {
+  #       ans[1,1] <- n*q/(2 * sigma2^2)
+  #       ans[1,2] <- ans[2,1] <- ( (n * q * (q - 1) * rho)/(2 * (rho - 1) * (q * rho - rho + 1) * sigma2) )
+  #       ans[2,2] <- ( n * (q - 1) * q * (q * rho^2 - rho^2 + 1)/(2 * (rho - 1)^2 * (q * rho - rho + 1)^2) )
+  #       return(ans) 
+  #     }
+  #   }
+  # }
+  
   information <- function(pars, level = 0, inverse = FALSE) {
     sigma2 <- pars[1]
     rho <- pars[2]
+    
     if (level == 0) {
       Iq <- diag(q)
       ones <- matrix(1, q, q)
@@ -107,7 +121,6 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
       }
     }
     if (level == 1) {
-      #block matrix sigma-rho 
       ans <- matrix(NA, 2, 2)
       if (inverse) {
         ans[1,1] <- ( (2 * (q * rho^2 - rho^2 + 1) * sigma2^2)/(n * q) )
@@ -119,57 +132,52 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
         ans[1,1] <- n*q/(2 * sigma2^2)
         ans[1,2] <- ans[2,1] <- ( (n * q * (q - 1) * rho)/(2 * (rho - 1) * (q * rho - rho + 1) * sigma2) )
         ans[2,2] <- ( n * (q - 1) * q * (q * rho^2 - rho^2 + 1)/(2 * (rho - 1)^2 * (q * rho - rho + 1)^2) )
-        return(ans)  
+        return(ans) 
       }
     }
   }
   
-  # Adjustment functions
-  # Jeffreys adjustment 
-  as_Jeffreys_adjustment <-
-    function(pars) {
-      sigma2 <- pars[1]
-      rho <- pars[2]
-      w_rho_d = ((q - 1) * rho * (q * rho - 2 * rho + 2)) / ((rho - 1) ^ 2 *
-                                                               (q * rho - rho + 1) ^ 2 * sigma2)
-      w_rho_od = -(q * rho ^ 2 - rho ^ 2 + 1) / ((rho - 1) ^ 2 * (q * rho -
-                                                                    rho + 1) ^ 2 * sigma2)
-      Omega_rho = matrix(w_rho_od, ncol = q, nrow = q) - diag(w_rho_od - w_rho_d, ncol =
-                                                                q, nrow = q)
-      x.omega.rho.x =  (t(x) %*%  (diag(n) %x% Omega_rho) %*% x)
-      d = det(x.omega.rho.x)
-      #return two components
-      a * c(-(2 + p) / sigma2, -(4 * q * rho - 4 * rho - 2 * q + 4) / ((rho - 1) * (q * rho - rho + 1)) -
-              log(abs(d)))
-    }
-  # mean adjustment
-  as_mean_adjustment <- function(pars) {
+  # invInfo2 <- function(pars)
+  # {
+  #   sigma2 <- pars[1]
+  #   rho <- pars[2]
+  #   Iq <- diag(q)
+  #   ones <- matrix(1, q, q)
+  #   omega <- (1/(sigma2 * (1 - rho)))*(Iq - ones * rho/(1 + rho * (q - 1)))
+  #   solve(t(x) %*%  (diag(n)%x%omega) %*% x)
+  # }
+  
+  ## Adjustment functions
+  ## adjustment with Jeffreys
+  as_Jeffreys_adjustment <- function(pars) {
     sigma2 <- pars[1]
     rho <- pars[2]
-    #off diagonal elements of Omega
-    w0od = rho / ((rho - 1) * (q * rho - rho + 1) * sigma2)
-    #diagonal elements of Omega
-    w0d = -(q * rho - 2 * rho + 1) / ((rho - 1) * (q * rho - rho + 1) *
-                                        sigma2)
-    Omega = matrix(w0od, ncol = q, nrow = q) - diag(w0od - w0d, nrow = q, ncol =
-                                                      q)
+    a*c(
+      c(-(2 + p)/sigma2,
+        -((4 + p) *q * rho - (4 + p) * rho -(2 + p) * q + (4 + p))/((rho - 1) * (q * rho - rho + 1)))
+    )
+  }
+  ## mean adjustment
+  as_mean_adjustment <- function(pars) {
     
-    #derivarives of Omega
-    w_rho_d = ((q - 1) * rho * (q * rho - 2 * rho + 2)) / ((rho - 1) ^ 2 *
-                                                             (q * rho - rho + 1) ^ 2 * sigma2)
-    w_rho_od = -(q * rho ^ 2 - rho ^ 2 + 1) / ((rho - 1) ^ 2 * (q * rho -
-                                                                  rho + 1) ^ 2 * sigma2)
-    Omega_rho = matrix(w_rho_od, ncol = q, nrow = q) - diag(w_rho_od - w_rho_d, ncol =
-                                                              q, nrow = q)
-    x.omega.rho.x =  (t(x) %*%  (diag(n) %x% Omega_rho) %*% x)
-    x.omega.x =  solve(t(x) %*%  (diag(n) %x% Omega) %*% x)
-    xprodx = x.omega.rho.x %*% x.omega.x
-    c(
-      -(2 * q * rho ^ 2 - 2 * rho ^ 2 - p) / (2 * sigma2),
-      #-(((q - 1) * (2 * q * rho^3 - 2 * rho^3 - p * rho + 2 * rho + p))/(2 * (rho - 1) * (q * rho - rho + 1)))-(q -
-      1) * rho * (q * rho ^ 2 - rho ^ 2 + 1) / ((rho - 1) * (q * rho - rho + 1)) -
-      0.5 * sum(diag(xprodx))
+    sigma2 <- pars[1]
+    rho <- pars[2]
     
+    w0od=rho/((rho-1)*(q*rho-rho+1)*sigma2)
+    w0d=-(q*rho-2*rho+1)/((rho-1)*(q*rho-rho+1)*sigma2)
+    Omega=matrix(w0od,ncol=q, nrow=q)-diag(w0od-w0d, nrow = q, ncol=q)
+    w_rho_d=((q-1)*rho*(q*rho-2*rho+2))/((rho-1)^2*(q*rho-rho+1)^2*sigma2)
+    w_rho_od=-(q*rho^2-rho^2+1)/((rho-1)^2*(q*rho-rho+1)^2*sigma2)
+    
+    Omega_rho=matrix( w_rho_od,ncol=q,nrow=q)-diag(w_rho_od-w_rho_d, ncol=q, nrow=q)
+    x.omega.rho.x=  (t(x) %*%  (diag(n)%x%Omega_rho) %*% x)
+    x.omega.x=  solve(t(x) %*%  (diag(n)%x%Omega) %*% x)
+    xprodx=x.omega.rho.x%*%x.omega.x
+    c( 
+      -(2 * q * rho^2 - 2 * rho^2 - p)/(2 * sigma2),
+      #-(((q - 1) * (2 * q * rho^3 - 2 * rho^3 - p * rho + 2 * rho + p))/(2 * (rho - 1) * (q * rho - rho + 1)))
+      -(q-1)*rho*(q*rho^2-rho^2+1)/((rho-1)*(q*rho-rho+1))-0.5*sum(diag(xprodx))
+      
     )
   }
   
@@ -177,17 +185,16 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
   as_median_adjustment <- function(pars) {
     sigma2 <- pars[1]
     rho <- pars[2]
-    
-    as_mean_adjustment(pars) - c(
-      -(
-        3 * q ^ 2 * rho ^ 4 - 6 * q * rho ^ 4 + 3 * rho ^ 4 + 6 * q * rho ^ 2 -
-          6 * rho ^ 2 - q * rho + 2 * rho + 1
-      ) / (3 * (q * rho ^ 2 - rho ^ 2 + 1) * sigma2),-(
-        3 * q ^ 3 * rho ^ 5 - 9 * q ^ 2 * rho ^ 5 + 9 * q * rho ^ 5 - 3 * rho ^
-          5 + 9 * q ^ 2 * rho ^ 3 - 18 * q * rho ^ 3 + 9 * rho ^ 3 - 2 * q ^ 2 * rho ^
-          2 + 6 * q * rho ^ 2
-        - 4 * rho ^ 2 + 4 * q * rho - 4 * rho - q + 2
-      ) / (3 * (rho - 1) * (q * rho - rho + 1) * (q * rho ^ 2 - rho ^ 2 + 1))
+   # c(  
+  #  ((3 * p * q * rho^2 + 6 * q * rho^2 - 3 * p * rho^2 - 6 * rho^2 - 2 * q * rho + 4 * rho + 3 * p + 2)/(6 * (q * rho^2 - rho^2 + 1) * sigma2)),
+   #   ((3 * p * q^2 * rho^3 + 6 * q^2 * rho^3 -6 * p * q * rho^3 - 12 * q * rho^3 + 3 * p * rho^3 + 6 * rho^3 - 3 * p * q^2 * rho^2 - 4 * q^2 * rho^2 +  
+    #      6 * p * q * rho^2 + 12 * q * rho^2 - 3 * p * rho^2 - 8 * rho^2 + 3 * p * q * rho + 2 * q * rho - 3 * p * rho - 2 * rho - 3 * p * q - 2 * q + 3 * p + 4)/
+    #     (6 * (rho - 1) * (q * rho - rho + 1) * (q * rho^2 - rho^2 + 1)))
+    #)
+    as_mean_adjustment(pars)-c( 
+      -(3*q^2*rho^4-6*q*rho^4+3*rho^4+6*q*rho^2-6*rho^2-q*rho+2*rho+1)/(3*(q*rho^2-rho^2+1)*sigma2),
+      -(3*q^3*rho^5-9*q^2*rho^5+9*q*rho^5-3*rho^5+9*q^2*rho^3-18*q*rho^3+9*rho^3-2*q^2*rho^2+6*q*rho^2
+        -4*rho^2+4*q*rho-4*rho-q+2)/(3*(rho-1)*(q*rho-rho+1)*(q*rho^2-rho^2+1))
     )
   }
   
@@ -196,12 +203,13 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
   bias <- function(pars) {
     sigma2 <- pars[1]
     rho <- pars[2]
-    c(-(p * (q * rho - rho + 1) * sigma2)/(n * q),
+    c(
+      -(p * (q * rho - rho + 1) * sigma2)/(n * q),
       ((rho - 1) * (2 * rho + p) * (q * rho - rho + 1))/(n * q)
     )
   }
   
-  ##chose adjustment term function with method
+  ## adjustment term function ##
   
   adjustment_function <- switch(method, 
                                 AS_mean = as_mean_adjustment, 
@@ -213,28 +221,22 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
   inverse_info <- information(pars, level = 1, inverse = TRUE)
   adjusted_grad <- score(pars, y, mus) + adjustment_function(pars)
   step <- drop(inverse_info %*% adjusted_grad)
-  
   if (maxit == 0) {
     iter <- 0
     failed <- FALSE
   }
   else 
   {
-    for (iter in seq.int(maxit)) { #start iterations
+    for (iter in seq.int(maxit)) {
       step_factor <- 0
       testhalf <- TRUE
       while (testhalf & step_factor < max_step_factor) {
         step_previous <- step
         pars <- pars + slowit * 2^(-step_factor) * step
-        varcov= varcov=pars[1]*(matrix(pars[2],ncol=q,nrow=q)+diag(1-pars[2],q))
-        betas_new <-  (solve(t(x) %*% (diag(n)%x% solve(varcov) )%*% x)) %*% (t(x) %*% ( (diag(n)%x%  solve(varcov) )%*% y))
-        mus <- drop(x %*% betas_new)
         
         inverse_info <- information(pars, level = 1, inverse = TRUE)
-        adjusted_grad <- score(pars, y = y, mus = mus) + adjustment_function(pars)
+        adjusted_grad <- score(pars, y, mus) + adjustment_function(pars)
         step <- drop(inverse_info %*% adjusted_grad)
-        
-        
         
         if (step_factor == 0 & iter == 1) {
           testhalf <- TRUE
@@ -244,10 +246,9 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
         }
         step_factor <- step_factor + 1
       }
-      if (( all(abs( adjusted_grad ) < epsilon)) & all((betas_new-betas)<10^-11)) {
+      if ( all(abs( adjusted_grad ) < epsilon)) {
         break
       }
-      betas=betas_new
     }
   }
   if(iter >= maxit) {
@@ -272,6 +273,3 @@ bren <- function(x, y, id, method = "ML", a = 0.5,
        iter =iter, grad = c(rep(0,p),adjusted_grad ), method = method)
   
 }
-
-
-
